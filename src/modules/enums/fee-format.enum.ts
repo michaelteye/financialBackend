@@ -1,0 +1,6 @@
+export enum FEE_FORMAT {
+  PERCENTAGE = 'PERCENTAGE',
+  FIXED_VALUE = 'FIXED_VALUE',
+}
+
+

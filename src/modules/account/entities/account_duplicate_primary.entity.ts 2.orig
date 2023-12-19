@@ -1,0 +1,128 @@
+import { AbstractEntity } from '../../main/entities/abstract-entity';
+import {
+  Column,
+  Entity,
+  JoinColumn,
+  ManyToOne,
+  OneToMany,
+  OneToOne,
+} from 'typeorm';
+import { AccountTypeEntity } from './account-type.entity';
+
+import { UserEntity } from '../../main/entities/user.entity';
+import { WalletTypeEntity } from '../../wallet/entities/wallet.entity';
+import { SavingsGoalEntity } from '../../savings-goal/entities/savings-goal.entity';
+import { AccountTransactionEntity } from '../../transactions/entities/account-transaction.entity';
+import { InvestmentEntity } from '../../investment/entities/invest.entity';
+import { TransactionEntity } from '../../transactions/entities/transaction.entity';
+
+@Entity()
+export class AccountDuplicatePrimaryEntity extends AbstractEntity {
+  @Column('text', { nullable: false })
+  name: string;
+
+<<<<<<< HEAD
+  @ManyToOne(() => AccountTypeEntity, (a) => a.accounts)
+  @JoinColumn({ name: 'accountTypeId' })
+  accountType?: AccountTypeEntity;
+=======
+//   @ManyToOne(() => AccountTypeEntity, (a) => a.accounts)
+//   @JoinColumn({ name: 'accountTypeId' })
+//   accountType?: AccountTypeEntity;
+>>>>>>> 54720f3ca96705affa51bf3ff9af7da271b80e75
+
+  @Column('uuid')
+  accountTypeId: string;
+
+  @Column('varchar', { nullable: true })
+  alias?: string;
+
+
+  @OneToOne(() => SavingsGoalEntity, (a) => a.account, {
+    nullable: true,
+  })
+  savingsGoal?: SavingsGoalEntity;
+
+
+  @Column('varchar', { nullable: false, length: 20 })
+  accountNumber: string;
+
+  @Column({
+    type: 'decimal',
+    precision: 10,
+    scale: 2,
+    default: 0,
+    nullable: false,
+  })
+  balance?: number;
+
+<<<<<<< HEAD
+  @ManyToOne(() => UserEntity, (a) => a.accounts, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'userId' })
+  user?: UserEntity;
+=======
+//   @ManyToOne(() => UserEntity, (a) => a.accounts, { onDelete: 'CASCADE' })
+//   @JoinColumn({ name: 'userId' })
+//   user?: UserEntity;
+>>>>>>> 54720f3ca96705affa51bf3ff9af7da271b80e75
+
+  @Column('uuid')
+  userId: string;
+
+<<<<<<< HEAD
+  @ManyToOne(() => WalletTypeEntity, (w) => w.accounts)
+  @JoinColumn({ name: 'walletId' })
+  wallet?: WalletTypeEntity;
+=======
+//   @ManyToOne(() => WalletTypeEntity, (w) => w.accounts)
+//   @JoinColumn({ name: 'walletId' })
+//   wallet?: WalletTypeEntity;
+>>>>>>> 54720f3ca96705affa51bf3ff9af7da271b80e75
+
+  @Column('uuid')
+  walletId: string;
+
+  @Column('integer', { nullable: true, default: 0 })
+  withdrawalPeriod?: number;
+
+  @Column('boolean', { nullable: true, default: true })
+  allowWithdrawal: boolean;
+
+  @Column('boolean', { nullable: true, default: false })
+  allowWithdrawalWithFees: boolean;
+
+  @Column('boolean', { nullable: true, default: true })
+  allowDeposit: boolean;
+
+  @Column('boolean', { nullable: true, default: false })
+  canOverDraw: boolean;
+
+  @Column('integer', { nullable: true, default: 0 })
+  dailyLimit?: number;
+
+  @Column('integer', { nullable: true, default: 0 })
+  monthlyLimit?: number;
+
+  // @OneToMany(() => DepositEntity, (d) => d.account)
+  // deposits?: DepositEntity[];
+
+<<<<<<< HEAD
+  @OneToMany(() => InvestmentEntity, (i) => i.account)
+  investments?: InvestmentEntity[];
+
+  @OneToMany(() => TransactionEntity, (i) => i.account)
+  transactions?: TransactionEntity[];
+
+  @OneToMany(() => AccountTransactionEntity, (a) => a.account)
+=======
+  //@OneToMany(() => InvestmentEntity, (i) => i.account)
+  investments?: InvestmentEntity[];
+
+ // @OneToMany(() => TransactionEntity, (i) => i.account)
+  transactions?: TransactionEntity[];
+
+  //@OneToMany(() => AccountTransactionEntity, (a) => a.account)
+>>>>>>> 54720f3ca96705affa51bf3ff9af7da271b80e75
+  accountTransactions?: AccountTransactionEntity[];
+
+}

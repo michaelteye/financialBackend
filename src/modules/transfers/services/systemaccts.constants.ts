@@ -1,0 +1,16 @@
+export enum SYSTEM_ACCOUNT_TYPE {
+    DEPOSIT_WITHDRAWALS="DEPOSIT_WITHDRAWALS",
+    EARLY_WITHDRAWAL_FEES="EARLY_WITHDRAWAL_FEES",
+    STAFF_ALLOWANCES="STAFF_ALLOWANCES",
+    MOMO_WITHDRAWAL_FEES="MOMO_WITHDRAWAL_FEES",
+  };
+
+export const SYSTEM_ACCOUNT={
+  DEPOSIT_WITHDRAWALS:"deposit_withdrawals",
+  EARLY_WITHDRAWAL_FEES:"early_withdrawal_fees",
+  MOMO_WITHDRAWAL_FEES:"momo_withdrawal_fees",
+  STAFF_ALLOWANCES:"staff_allowances",
+  INTEREST_PAYMENTS:"interest_payments",
+  VAS_PAYMENT:"vas_payment",
+  MONTHLY_SERVICE_FEES:"monthly_service_fees"
+}

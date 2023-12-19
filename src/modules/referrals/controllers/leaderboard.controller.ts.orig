@@ -1,0 +1,62 @@
+import {
+    Controller,
+    UseGuards,
+    UsePipes,
+    ValidationPipe,
+    Post,
+    Body,
+    Get,
+    Param,
+    Patch,
+  } from '@nestjs/common';
+  import { ApiBearerAuth, ApiTags, ApiResponse, ApiParam } from '@nestjs/swagger';
+
+
+  import { ReferralService } from '../services/referral.service';
+ 
+  
+  @ApiTags('Referrals')
+
+  @Controller('users')
+
+  export class LeaderBoardController {
+    constructor(private service: ReferralService) {}
+  
+   
+  
+    // GET LEADERBOARD INFO
+<<<<<<< HEAD
+
+=======
+<<<<<<< HEAD
+=======
+
+>>>>>>> f84a932 (fixed merge)
+>>>>>>> 2ec52ec8c83a3d07a2cf850d1975a458ae41bc49
+    @Get('/leaderboard')
+    async getleaderBoard(): Promise<any> {
+      return await this.service.getleaderBoard();
+    }
+
+    @Get('/staff/leaderboard')
+    async getBezoStaffleaderBoard(): Promise<any> {
+      return await this.service.getBezoStaffleaderBoard();
+    }
+
+
+    @Get('/iosandroid')
+    async getSignUpAndroidIos(): Promise<any> {
+      return await this.service.getSignUpAndroidIos();
+    }
+
+<<<<<<< HEAD
+    @Get('/all/referred')
+    async getUserReferrerAndReferee(): Promise<any> {
+      return await this.service.getUserReferrerAndReferee();
+    }
+  
+
+=======
+>>>>>>> 2ec52ec8c83a3d07a2cf850d1975a458ae41bc49
+  }
+  

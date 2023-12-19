@@ -1,0 +1,343 @@
+import { TransferService } from '../../transfers/services/transfer.service';
+import { AccountDepositWithrawalDto } from './../../transfers/dto/AccountDepositDto';
+import { AccountEntity } from './../../account/entities/account.entity';
+import { InjectConnection } from '@nestjs/mongoose';
+import { Connection } from 'mongoose';
+import { Console, Command } from 'nestjs-console';
+import { EntityManager } from 'typeorm';
+import { SavingsGoalEntity } from '../../savings-goal/entities/savings-goal.entity';
+import { TRANSACTION_TYPE } from '../../enums/transaction-type.enum';
+import { MigrationDepositsEntity } from '../entitites/migration.deposits.entity';
+import { MigrationService } from '../services/migration.service';
+import { differenceInDays } from 'date-fns';
+import { NotificationService } from '../../notifications/services/notification.service';
+import { AccountDuplicatePrimaryEntity } from '../../account/entities/account_duplicate_primary.entity';
+import { IntraTransferDto } from '../../account/dtos/transfer-account.dto';
+import { TransactionEntity } from '../../transactions/entities/transaction.entity';
+import { AccountTransactionEntity } from '../../transactions/entities/account-transaction.entity';
+import { AccountTransactionBackupEntity } from '../../transactions/entities/account-transaction-backup.entity';
+import { TransactionBackupEntity } from '../../transactions/entities/transaction_backup.entity';
+
+@Console()
+export class MigrateDuplicatePrimaryCommand {
+  private db: Connection;
+  constructor(
+    private em: EntityManager,
+    @InjectConnection() private connection: Connection,
+    private service: MigrationService,
+    private transferService: TransferService,
+    private notificationService: NotificationService,
+  ) {
+    this.db = this.connection.useDb('bezosusuDBLive');
+  }
+
+  @Command({
+    command: 'migrate:delete:duplicate',
+  })
+  async execute(opts?: any) {
+    try {
+      return await this._execute(opts);
+    } catch (e) {
+      console.error(e);
+      return 1;
+    }
+  }
+
+  // write you
+  async _execute(opts?: any) {
+    console.log('Migrating Delete Duplicates ....');
+
+    const query = `SELECT "userId","name"
+    FROM public.account_entity
+    WHERE name = 'Primary'
+    GROUP BY "name","userId"
+    HAVING COUNT(*) > 1
+     `;
+
+      const result = await this.em.query(query);
+      console.log("result",result)
+
+    // const result = [
+    //   {
+    //     userId: 'b8ca2314-4d65-49e3-8928-7d4e6608114f',
+    //     name: 'Primary',
+    //   },
+    // ];
+    const chunkSize = 5;
+    for (let i = 0; i < result.length; i += chunkSize) {
+      const chunk = result.slice(i, i + chunkSize);
+
+      const res = await Promise.all(
+        chunk.map(async (dataInput) => {
+          await this.migrateDeleteDupPrimary(dataInput);
+        }),
+      );
+
+      console.log('resMain', res);
+    }
+  }
+
+  async migrateDeleteDupPrimary(data: any) {
+    console.log("data",data)
+    //  const  getAssociatedAccount = await this.em.findOne(AccountEntity,{where:{id:data.accountId }})
+
+    const allUserPrimaryAccounts = await this.em.find(AccountEntity, {
+      where: { userId: data.userId, name: 'Primary' },
+    });
+
+    const saveAllUserAccounts = await Promise.all(
+      allUserPrimaryAccounts.map(async (dataInput) => {
+        await this.em.save(AccountDuplicatePrimaryEntity, dataInput);
+      }),
+    );
+
+    // find all zero Primary accounts
+    const notzeroPrimary = allUserPrimaryAccounts.filter((r) => r.balance > 0);
+
+    console.log('notzeroPrimary length', notzeroPrimary.length);
+    //let selectAccountWithBalance;
+    //if none of the accounts have more than 0 balances
+    if (notzeroPrimary.length == 0) {
+      ////Find all accounts with maximum transaction
+      let counter = {};
+
+      await Promise.all(
+        allUserPrimaryAccounts.map(async (dataToCheckinTranx) => {
+          const queryToCheckTransactions = `
+           SELECT * FROM public.transaction_entity t
+                    WHERE t."accountId" IN  ('${dataToCheckinTranx.id}')
+                    or t."fromAccountId" IN  ('${dataToCheckinTranx.id}') or 	
+                    t."toAccountId" IN  ('${dataToCheckinTranx.id}')`;
+
+          const countRes = await this.em.query(queryToCheckTransactions);
+
+          counter[dataToCheckinTranx.id] = {
+            key: dataToCheckinTranx.id,
+            value: countRes.length,
+          };
+        }),
+      );
+
+      //// Find Account Id with Max number of Transactions
+
+      console.log('counter', counter);
+
+      const objectValues: any = Object.values(counter)
+        .sort((a: any, b: any) => b.value - a.value)
+        .slice(0, 1);
+
+    //  console.log('objectValues', objectValues);
+      if (objectValues[0].value > 0) {
+        const accountToDelete = allUserPrimaryAccounts.filter(
+          (r) => r.id != objectValues[0].key,
+        );
+
+          let deleteDuplicates = await Promise.all(
+            accountToDelete.map(async (dataInputToDelete) => {
+              try {
+                await this.em.delete(AccountEntity, { id: dataInputToDelete.id },
+                  )
+              } catch (error) {
+                  console.log("error deleting ",error)
+              }
+             
+            })
+          );
+
+      
+        console.log('deleteDuplicates 1', accountToDelete);
+      } else {
+        allUserPrimaryAccounts.shift();
+
+       
+        console.log("allUserPrimaryAccounts left")
+
+        if(allUserPrimaryAccounts.length>0){
+
+          
+          let deleteDuplicates = await Promise.all(
+            allUserPrimaryAccounts.map(async (dataInputToDelete) => {
+
+              const queryToCheckTransactions = `
+               SELECT * FROM public.transaction_entity t
+                        WHERE t."accountId" IN  ('${dataInputToDelete.id}')
+                        or t."fromAccountId" IN  ('${dataInputToDelete.id}') or 	
+                        t."toAccountId" IN  ('${dataInputToDelete.id}')`;
+    
+              const countRes = await this.em.query(queryToCheckTransactions);
+
+              if(countRes.length>0){
+                await Promise.all(
+                  countRes.map(async (dataToDelete) => {
+                    await this.em.save(TransactionBackupEntity,dataToDelete)
+                    await this.em.delete(TransactionEntity, { transactionId:dataToDelete.transactionId })
+                  })
+                 )
+              }
+              try {
+                  console.log("account Id to delete",dataInputToDelete.id)
+                  await this.em.delete(AccountEntity, { id: dataInputToDelete.id })
+              } catch (error) {
+                  console.log("error deleting 2 ",error)
+                  console.log("allUserPrimaryAccounts",allUserPrimaryAccounts)
+              }
+             
+            })
+          );
+
+         
+          // for(let i=0;i<allUserPrimaryAccounts.length;i++){
+          //   try{
+              
+          //   const accounTnx2= await this.em.find(AccountTransactionEntity,{where:{accountId:allUserPrimaryAccounts[i].id}})
+          //     await this.em.save(TransactionBackupEntity,accounTnx2)
+          //     await this.em.delete(TransactionEntity, { transactionId:dataToDelete.transactionId })
+          //     await this.em.delete(AccountEntity, { id: allUserPrimaryAccounts[i].id })
+          //   }catch(error){
+          //     console.log("error deleting 2 ",error)
+          //     console.log("allUserPrimaryAccounts",allUserPrimaryAccounts[i])
+          //   }
+                
+          // }
+        }
+       
+
+        console.log('deleteDuplicates 2');
+      }
+    } else if (notzeroPrimary.length == 1) {
+      const accountToDelete = allUserPrimaryAccounts.filter(
+        (r) => r.id != notzeroPrimary[0].id,
+      );
+
+      //console.log("accountToDelete >>>",accountToDelete)
+      console.log("allUserPrimaryAccounts left 2>>",accountToDelete)
+      if(accountToDelete.length>0){
+
+        
+
+        
+
+       await Promise.all(
+          accountToDelete.map(async (dataInputToDelete) => {
+
+            const accounTnx2= await this.em.find(AccountTransactionEntity,{where:{accountId:dataInputToDelete.id}})
+            console.log("accounTnx2",accounTnx2)
+            
+            if(accounTnx2.length>0){
+             
+              await Promise.all(
+                accounTnx2.map(async (dataToSave) => {
+                  await this.em.save(AccountTransactionBackupEntity,dataToSave)
+                  await this.em.delete(AccountTransactionEntity, { transactionId:dataToSave.transactionId })
+                })
+               )
+
+               /// get all transaction of this account
+
+              const queryToCheckTransactions = `
+               SELECT * FROM public.transaction_entity t
+                        WHERE t."accountId" IN  ('${dataInputToDelete.id}')
+                        or t."fromAccountId" IN  ('${dataInputToDelete.id}') or 	
+                        t."toAccountId" IN  ('${dataInputToDelete.id}')`;
+    
+              const countRes = await this.em.query(queryToCheckTransactions);
+
+              if(countRes.length>0){
+                await Promise.all(
+                  countRes.map(async (dataToDelete) => {
+                    await this.em.save(TransactionBackupEntity,dataToDelete)
+                    await this.em.delete(TransactionEntity, { transactionId:dataToDelete.transactionId })
+                  })
+                 )
+              }
+
+             await this.em.delete(AccountEntity, { id: dataInputToDelete.id })
+
+            }else{
+              console.log("account Id to delete 222")
+             
+
+              try {
+
+                const queryToCheckTransactions = `
+               SELECT * FROM public.transaction_entity t
+                        WHERE t."accountId" IN  ('${dataInputToDelete.id}')
+                        or t."fromAccountId" IN  ('${dataInputToDelete.id}') or 	
+                        t."toAccountId" IN  ('${dataInputToDelete.id}')`;
+    
+              const countRes = await this.em.query(queryToCheckTransactions);
+
+              if(countRes.length>0){
+                await Promise.all(
+                  countRes.map(async (dataToDelete) => {
+                    await this.em.save(TransactionBackupEntity,dataToDelete)
+                    await this.em.delete(TransactionEntity, { transactionId:dataToDelete.transactionId })
+                  })
+                 )
+              }
+                await this.em.delete(AccountEntity, { id: dataInputToDelete.id })
+                
+              } catch (error) {
+                console.log("error @ account Id to delete 222",error)
+                
+              }
+           
+
+            }
+
+  
+            })
+        )
+
+
+
+
+      }
+      
+      console.log('deleteDuplicates');
+    } else if (notzeroPrimary.length > 1) {
+
+      console.log("where more than 1")
+      //if  there are more that one Primary with more than zero Balances transfer to
+      const userAccountToTransferto = notzeroPrimary.shift();
+
+     // console.log('Account to move balances from', notzeroPrimary);
+
+      await Promise.all(
+        notzeroPrimary.map(async (dataInputToDelete) => {
+          const transferToUserMain = new IntraTransferDto();
+          transferToUserMain.amount = dataInputToDelete.balance;
+          transferToUserMain.fromAccountId = dataInputToDelete.id;
+          transferToUserMain.toAccountId = userAccountToTransferto.id;
+          const res=await this.transferService.intraAccountTransferWithoutAuthorization(
+            transferToUserMain,
+          );
+          //console.log("transfer res",res)
+          ///get Transaction Data with from account
+
+         const accounTnx= await this.em.findOne(AccountTransactionEntity,{where:{transactionId:res.trxnRef}})
+
+         await this.em.save(AccountTransactionBackupEntity,accounTnx)
+         await this.em.delete(AccountTransactionEntity, { transactionId: res.trxnRef })
+         await this.em.delete(AccountEntity, { id: dataInputToDelete.id })
+
+        }),
+      );
+
+
+      ////// Save to account_transaction_duplicate
+
+      /// DELETE ALL OTHERS
+
+      const accountToDelete = allUserPrimaryAccounts.filter(
+        (r) => r.id != userAccountToTransferto.id,
+      );
+
+       await Promise.all(
+        accountToDelete.map(async (dataInputToDelete) => {
+           await this.em.delete(AccountEntity, { id: dataInputToDelete.id })
+        })
+       )
+    }
+  }
+}

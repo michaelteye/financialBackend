@@ -1,0 +1,7 @@
+export enum GROUP_MEMBERS_STATUS {
+    PENDING = 'PENDING',
+    ACTIVE = 'ACTIVE',
+    INACTIVE = 'INACTIVE',
+    DECLINED = 'DECLINED'
+  }
+  

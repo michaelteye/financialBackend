@@ -1,0 +1,5 @@
+export enum INTEREST_STATUS_TYPE {
+    COMPLETED = 'COMPLETED',
+    PENDING = 'PENDING',
+  }
+  
